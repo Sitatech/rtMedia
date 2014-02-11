@@ -19,7 +19,7 @@ class RTMediaUploadEndpoint {
     /**
      *
      */
-    function template_redirect () {
+    function template_redirect ( $create_activity = true ) {
         ob_start ();
         if ( ! count ( $_POST ) ) {
             include get_404_template ();
@@ -30,13 +30,30 @@ class RTMediaUploadEndpoint {
 	    }
             $rtupload = false;
             $activity_id = -1;
+	    $redirect_url = "";
             if ( wp_verify_nonce ( $nonce, 'rtmedia_upload_nonce' ) ) {
                 $model = new RTMediaUploadModel();
                 $this->upload = $model->set_post_object ();
 		if ( isset ( $_POST[ 'activity_id' ] ) && $_POST[ 'activity_id' ] != -1 ) {
                     $this->upload[ 'activity_id' ] = $_POST[ 'activity_id' ];
                     $activity_id = $_POST[ 'activity_id' ];
+
                 }
+
+//                ////if media upload is being made for a group, identify the group privacy and set media privacy accordingly
+                if( isset( $this->upload[ 'context' ] ) && isset( $this->upload[ 'context_id' ] ) && $this->upload[ 'context' ] == 'group' && function_exists('groups_get_group') ){
+
+                    $group = groups_get_group( array( 'group_id' => $this->upload[ 'context_id' ] ) );
+                    if( isset($group->status) && $group->status != 'public'){
+                        // if group is not public, then set media privacy as 20, so only the group members can see the images
+                        $this->upload[ 'privacy' ] = '20';
+                    }else {
+                        // if group is public, then set media privacy as 0
+                        $this->upload[ 'privacy' ] = '0';
+                    }
+
+                }
+
                 $rtupload = new RTMediaUpload ( $this->upload );
                 $mediaObj = new RTMediaMedia();
                 $media = $mediaObj->model->get ( array( 'id' => $rtupload->media_ids[ 0 ] ) );
@@ -57,61 +74,69 @@ class RTMediaUploadEndpoint {
 		    } else {
 			$rtMediaNav->refresh_counts ( $media[ 0 ]->media_author, array( "context" => "profile", 'media_author' => $media[ 0 ]->media_author ) );
 		    }
-		    if ( $activity_id == -1 && ( ! (isset ( $_POST[ "rtmedia_update" ] ) && $_POST[ "rtmedia_update" ] == "true")) ) {
-			$activity_id = $mediaObj->insert_activity ( $media[ 0 ]->media_id, $media[ 0 ] );
-		    } else {
-			$mediaObj->model->update ( array( 'activity_id' => $activity_id ), array( 'id' => $rtupload->media_ids[ 0 ] ) );
-			//
-			$same_medias = $mediaObj->model->get ( array( 'activity_id' => $activity_id ) );
+		    if( $create_activity !== false && class_exists('BuddyPress') ) {
+			if ( $activity_id == -1 && ( ! (isset ( $_POST[ "rtmedia_update" ] ) && $_POST[ "rtmedia_update" ] == "true")) ) {
+			    $activity_id = $mediaObj->insert_activity ( $media[ 0 ]->media_id, $media[ 0 ] );
+			} else {
+			    $mediaObj->model->update ( array( 'activity_id' => $activity_id ), array( 'id' => $rtupload->media_ids[ 0 ] ) );
+			    //
+			    $same_medias = $mediaObj->model->get ( array( 'activity_id' => $activity_id ) );
 
-			$update_activity_media = Array( );
-			foreach ( $same_medias as $a_media ) {
-			    $update_activity_media[ ] = $a_media->id;
+			    $update_activity_media = Array( );
+			    foreach ( $same_medias as $a_media ) {
+				$update_activity_media[ ] = $a_media->id;
+			    }
+			    $privacy = 0;
+			    if ( isset ( $_POST[ "privacy" ] ) ) {
+				$privacy = $_POST[ "privacy" ];
+			    }
+			    $objActivity = new RTMediaActivity ( $update_activity_media, $privacy, false );
+			    global $wpdb, $bp;
+			    $user = get_userdata ( $same_medias[0]->media_author );
+			    $username = '<a href="' . get_rtmedia_user_link ( $same_medias[0]->media_author ) . '">' . $user->user_nicename . '</a>';
+			    $action = sprintf ( __('%s added %d %s','rtmedia'), $username, sizeof($same_medias), RTMEDIA_MEDIA_SLUG);
+			    $action = apply_filters('rtmedia_buddypress_action_text_fitler_multiple_media',$action,$username,sizeof($same_medias),$user->user_nicename);
+			    $wpdb->update ( $bp->activity->table_name, array( "type" => "rtmedia_update", "content" => $objActivity->create_activity_html (), 'action' => $action ), array( "id" => $activity_id ) );
 			}
-			$privacy = 0;
-			if ( isset ( $_POST[ "privacy" ] ) ) {
-			    $privacy = $_POST[ "privacy" ];
-			}
-			$objActivity = new RTMediaActivity ( $update_activity_media, $privacy, false );
-			global $wpdb, $bp;
-			$wpdb->update ( $bp->activity->table_name, array( "type" => "rtmedia_update", "content" => $objActivity->create_activity_html () ), array( "id" => $activity_id ) );
 		    }
-
 		}
+
 		if(isset($this->upload['rtmedia_simple_file_upload']) && $this->upload['rtmedia_simple_file_upload'] == true ) {
-		    $redirect_url = "";
-		    if ( isset ( $_POST[ "redirect" ] ) ) {
-                        if ( intval ( $_POST[ "redirect" ] ) > 1 ) {
-                            //bulkurl
-                            if ( $media[ 0 ]->context == "group" ) {
-                                $redirect_url =  trailingslashit ( get_rtmedia_group_link ( $media[ 0 ]->context_id ) ) . RTMEDIA_MEDIA_SLUG;
-                            } else {
-                                $redirect_url =  trailingslashit ( get_rtmedia_user_link ( $media[ 0 ]->media_author ) ) . RTMEDIA_MEDIA_SLUG;
-                            }
-                        } else {
-                            $redirect_url = get_rtmedia_permalink ( $media[ 0 ]->id );
-                        }
-			$redirect_url = apply_filters("rtmedia_simple_file_upload_redirect_url_filter",$redirect_url);
-			wp_safe_redirect($redirect_url);
-                        die();
+		    if(isset($media) && sizeof($media) > 0) {
+			if ( isset ( $_POST[ "redirect" ] ) ) {
+			    if ( intval ( $_POST[ "redirect" ] ) > 1 ) {
+				//bulkurl
+				if ( $media[ 0 ]->context == "group" ) {
+				    $redirect_url =  trailingslashit ( get_rtmedia_group_link ( $media[ 0 ]->context_id ) ) . RTMEDIA_MEDIA_SLUG;
+				} else {
+				    $redirect_url =  trailingslashit ( get_rtmedia_user_link ( $media[ 0 ]->media_author ) ) . RTMEDIA_MEDIA_SLUG;
+				}
+			    } else {
+				$redirect_url = get_rtmedia_permalink ( $media[ 0 ]->id );
+			    }
+			    $redirect_url = apply_filters("rtmedia_simple_file_upload_redirect_url_filter",$redirect_url);
+			    wp_safe_redirect($redirect_url);
+			    die();
+			}
+			return $media;
 		    }
-		    return $media;
+		    return false;
 		}
             }
 
-                $redirect_url = "";
-                if ( isset ( $_POST[ "redirect" ] ) && is_numeric ( $_POST[ "redirect" ] ) ) {
-                        if ( intval ( $_POST[ "redirect" ] ) > 1 ) {
-                            //bulkurl
-                            if ( $media[ 0 ]->context == "group" ) {
-                                $redirect_url =  trailingslashit ( get_rtmedia_group_link ( $media[ 0 ]->context_id ) ) . RTMEDIA_MEDIA_SLUG;
-                            } else {
-                                $redirect_url =  trailingslashit ( get_rtmedia_user_link ( $media[ 0 ]->media_author ) ) . RTMEDIA_MEDIA_SLUG;
-                            }
-                        } else {
-                            $redirect_url = get_rtmedia_permalink ( $media[ 0 ]->id );
-                        }
-                }
+	    $redirect_url = "";
+	    if ( isset ( $_POST[ "redirect" ] ) && is_numeric ( $_POST[ "redirect" ] ) ) {
+		    if ( intval ( $_POST[ "redirect" ] ) > 1 ) {
+			//bulkurl
+			if ( $media[ 0 ]->context == "group" ) {
+			    $redirect_url =  trailingslashit ( get_rtmedia_group_link ( $media[ 0 ]->context_id ) ) . RTMEDIA_MEDIA_SLUG;
+			} else {
+			    $redirect_url =  trailingslashit ( get_rtmedia_user_link ( $media[ 0 ]->media_author ) ) . RTMEDIA_MEDIA_SLUG;
+			}
+		    } else {
+			$redirect_url = get_rtmedia_permalink ( $media[ 0 ]->id );
+		    }
+	    }
 
 
                           // Ha ha ha

@@ -397,7 +397,7 @@ class RTMediaQuery {
          * setting parameters in action query object for pagination
          */
         $per_page_media = intval ( $rtmedia->options[ 'general_perPageMedia' ] );
-	$per_page_media = apply_filters( "rtmedia_per_page_media", $per_page_media );
+	$per_page_media = intval ( apply_filters( "rtmedia_per_page_media", $per_page_media ) );
 
 
         $this->action_query = ( object ) array(
@@ -456,8 +456,9 @@ class RTMediaQuery {
 		    unset ( $this->query[ "context_id" ] );
 		if ( isset ( $this->query[ "context" ] ) )
 		    unset ( $this->query[ "context" ] );
-		if ( isset ( $this->query[ "album_id" ] ) )
-		    unset ( $this->query[ "album_id" ] );
+                //dont unset album id when provided, to show content of a single album
+//		if ( isset ( $this->query[ "album_id" ] ) )
+//		    unset ( $this->query[ "album_id" ] );
                 if(isset($this->query[ "media_type" ]) && $this->query[ "media_type" ] == "album"){
                    //$this->action_query->media_type = "album";
                     add_filter("rtmedia-before-template", array(&$this,"register_set_gallery_template_filter"),10,2);
@@ -524,6 +525,9 @@ class RTMediaQuery {
 
         $order_by = $this->order_by ();
 
+        //add filter to filter group media when context is profile
+        //add_filter('rtmedia-model-where-query',array($this,'rtmedia_model_where_query'), 10, 3);
+
         if ( isset ( $this->media_query[ 'context' ] ) ) {
 
             if ( $this->media_query[ 'context' ] == 'profile' ) {
@@ -533,8 +537,13 @@ class RTMediaQuery {
                 else
                     $author = $this->media_query[ 'context_id' ];
 
-                unset ( $this->media_query[ 'context' ] );
-                unset ( $this->media_query[ 'context_id' ] );
+                //if it is a media single page, then unset the context and context id
+                if($this->is_single()){
+                    unset ( $this->media_query[ 'context' ] );
+                    unset ( $this->media_query[ 'context_id' ] );
+                }
+                //unset ( $this->media_query[ 'context' ] );
+                //unset ( $this->media_query[ 'context_id' ] );
             } else if ( $this->media_query[ 'context' ] == 'group' ) {
                 $group_id = $this->media_query[ 'context_id' ];
             } else {
@@ -572,6 +581,8 @@ class RTMediaQuery {
              */
             $media_for_total_count = $this->model->get_media ( $this->media_query, false, false, false , true );
         }
+        //add filter that was added to filter group media when context is profile
+       // remove_filter('rtmedia-model-where-query',array($this,'rtmedia_model_where_query'), 10, 3);
 
         $this->media_count = intval( $media_for_total_count );
 
@@ -585,6 +596,14 @@ class RTMediaQuery {
           $this->media[ $pre_medium->media_id ] = $pre_medium;
           } */
     }
+    // add a where condition to filter group media when context is profile
+//    function rtmedia_model_where_query($where, $table_name, $join) {
+//
+//	if( isset( $this->original_query ) && isset( $this->original_query[ 'context' ] ) && $this->original_query[ 'context' ] == "profile" ) {
+//	    $where .= ' AND ' . $table_name . '.context <> "group" ';
+//	}
+//	return $where;
+//    }
 
     function album_or_media () {
         global $rtmedia;

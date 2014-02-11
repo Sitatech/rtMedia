@@ -89,6 +89,7 @@ class RTMedia
          */
 	add_action('rt_db_upgrade', array($this, 'fix_parent_id'));
         add_action('rt_db_upgrade', array($this, 'fix_privacy'));
+        add_action('rt_db_upgrade', array($this, 'fix_group_media_privacy'));
         add_action('rt_db_upgrade', array($this, 'fix_db_collation'));
         $this->update_db();
         $this->default_thumbnail = apply_filters('rtmedia_default_thumbnail', RTMEDIA_URL . 'assets/thumb_default.png');
@@ -155,6 +156,21 @@ class RTMedia
 	$update_sql = "UPDATE $model->table_name SET privacy = '80' where privacy = '-1' ";
 	$wpdb->query($update_sql);
     }
+
+    /*
+     * Update media privacy of the medias having context=group
+     * update privacy of groups medias according to the privacy of the group 0->public, 20-> private/hidden
+     */
+    function fix_group_media_privacy(){
+        //if buddypress is active and groups are enabled
+	global $wpdb;
+	$model = new RTMediaModel();
+	$sql_group = " UPDATE $model->table_name m join {$wpdb->prefix}bp_groups bp on m.context_id = bp.id SET m.privacy = 0 where m.context = 'group' and bp.status = 'public' and m.privacy <> 80 ";
+	$wpdb->query($sql_group);
+	$sql_group = " UPDATE $model->table_name m join {$wpdb->prefix}bp_groups bp on m.context_id = bp.id SET m.privacy = 20 where m.context = 'group' and ( bp.status = 'private' OR bp.status = 'hidden' ) and m.privacy <> 80 ";
+	$wpdb->query($sql_group);
+    }
+
 
     function fix_db_collation() {
 	global $wpdb;
@@ -416,7 +432,7 @@ class RTMedia
             'general_enableMediaEndPoint' => 0,
             'general_showAdminMenu' => (isset($bp_media_options['show_admin_menu'])) ? $bp_media_options['show_admin_menu'] : 0,
             'general_videothumbs' => 2,
-	    'general_AllowUserData' => 1            
+	    'general_AllowUserData' => 1
         );
 
 
@@ -459,10 +475,10 @@ class RTMedia
         $defaults['privacy_enabled'] = (isset($bp_media_options['privacy_enabled'])) ? $bp_media_options['privacy_enabled'] : 0;
         $defaults['privacy_default'] = (isset($bp_media_options['default_privacy_level'])) ? $bp_media_options['default_privacy_level'] : 0;
         $defaults['privacy_userOverride'] = (isset($bp_media_options['privacy_override_enabled'])) ? $bp_media_options['privacy_override_enabled'] : 0;
-        
+
         $defaults['styles_custom'] = (isset($bp_media_options['styles_custom'])) ? $bp_media_options['styles_custom'] : '';
         $defaults['styles_enabled'] = (isset($bp_media_options['styles_enabled'])) ? $bp_media_options['styles_enabled'] : 1;
-        
+
         $this->options = $defaults;
 
         $this->init_buddypress_options();
@@ -550,8 +566,8 @@ class RTMedia
                 $label = ucfirst($name);
             }
 
-            if (isset($type['label_plural']) && $type['label_plural'] != '') {
-                $label_plural = $type['label_plural'];
+            if (isset($type['plural_label']) && $type['plural_label'] != '') {
+                $label_plural = $type['plural_label'];
             } else {
                 $label_plural = ucfirst($plural);
             }
@@ -636,9 +652,9 @@ class RTMedia
         }
         /** ------------------- * */
         $class_construct = apply_filters('rtmedia_class_construct', $class_construct);
-       
+
         $class_construct['Group'] = false; // will be constructed after rtmedia pro class.
-        
+
         foreach ($class_construct as $key => $global_scope) {
             $classname = '';
             $ck = explode('_', $key);
@@ -763,7 +779,7 @@ class RTMedia
             wp_enqueue_style('wp-mediaelement', RTMEDIA_URL . 'lib/media-element/mediaelementplayer.min.css', '', RTMEDIA_VERSION);
             wp_enqueue_script('wp-mediaelement-start', RTMEDIA_URL . 'lib/media-element/wp-mediaelement.js', 'wp-mediaelement', RTMEDIA_VERSION, true);
         }
-        
+
         global $rtmedia;
         // Dont enqueue main.css if default styles is checked false in rtmedia settings
         if( !( isset($rtmedia->options) && isset($rtmedia->options['styles_enabled']) && $rtmedia->options['styles_enabled']== 0)){
@@ -771,48 +787,51 @@ class RTMedia
         }
         wp_enqueue_style('rtmedia-font-awesome', RTMEDIA_URL . 'app/assets/css/font-awesome.min.css', '', RTMEDIA_VERSION);
         if(! wp_script_is("rtp-foundation-js"))
-            wp_enqueue_script('rtp-foundation-js', RTMEDIA_URL . 'lib/foundation/foundation.min.js', array('jquery'), RTMEDIA_VERSION);
-//        wp_enqueue_script('rtmedia-foundation-reveal', RTMEDIA_URL . 'lib/foundation/foundation.reveal.js', array('jquery','rtp-foundation-js'), RTMEDIA_VERSION);
-//        wp_enqueue_script('rtmedia-foundation-section', RTMEDIA_URL . 'lib/foundation/foundation.section.js', array('jquery','rtp-foundation-js'), RTMEDIA_VERSION);
+            wp_enqueue_script('rtp-foundation-js', RTMEDIA_BOWER_COMPONENTS_URL . 'js/foundation.min.js', array('jquery'), RTMEDIA_VERSION);
+
         wp_enqueue_script('rtmedia-main', RTMEDIA_URL . 'app/assets/js/rtMedia.js', array('jquery', 'wp-mediaelement'), RTMEDIA_VERSION);
+
         wp_enqueue_style('rtmedia-magnific', RTMEDIA_URL . 'lib/magnific/magnific.css', '', RTMEDIA_VERSION);
         wp_enqueue_script('rtmedia-magnific', RTMEDIA_URL . 'lib/magnific/magnific.js', '', RTMEDIA_VERSION);
+
         wp_localize_script('rtmedia-main', 'rtmedia_ajax_url', admin_url('admin-ajax.php'));
         wp_localize_script('rtmedia-main', 'rtmedia_media_slug', RTMEDIA_MEDIA_SLUG);
         wp_localize_script('rtmedia-main', 'rtmedia_lightbox_enabled', strval($this->options["general_enableLightbox"]));
+        //gallery reload after media upload, by default true
+        wp_localize_script('rtmedia-main', 'rtmedia_gallery_reload_on_upload', '1' );
         //javascript messages
-        wp_localize_script('rtmedia-magnific', 'rtmedia_load_more', __('Loading media',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_empty_activity_msg', __('Please enter some content to post.',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_empty_comment_msg', __('Empty Comment is not allowed.',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_media_delete_confirmation', __('Are you sure you want to delete this media?',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_media_comment_delete_confirmation', __('Are you sure you want to delete this comment?',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_album_delete_confirmation', __('Are you sure you want to delete this Album?',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_drop_media_msg', __('Drop files here',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_album_created_msg', ' ' . __('album created successfully.',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_something_wrong_msg', __('Something went wrong. Please try again.',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_empty_album_name_msg', __('Enter an album name.',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_max_file_msg', __('Max file Size Limit : ',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_allowed_file_formats', __('Allowed File Formats',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_select_all_visible', __('Select All Visible',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_unselect_all_visible', __('Unselect All Visible',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_no_media_selected', __('Please select some media.',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_selected_media_delete_confirmation', __('Are you sure you want to delete the selected medias?',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_selected_media_move_confirmation', __('Are you sure you want to move the selected medias?',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_waiting_msg', __('Waiting',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_uploaded_msg', __('Uploaded',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_uploading_msg', __('Uploading',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_upload_failed_msg', __('Failed',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_close', __('Close',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_edit', __('Edit',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_delete', __('Delete',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_edit_media', __('Edit Media',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_remove_from_queue', __('Remove from queue',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_add_more_files_msg', __('Add more files',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_file_extension_error_msg', __('File not supported',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_more', __('more',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_less', __('less',"rtMedia"));
-        wp_localize_script('rtmedia-main', 'rtmedia_delete_uploaded_media', __('This media is uploaded. Are you sure you want to delete this media?',"rtMedia"));
-        
+        wp_localize_script('rtmedia-magnific', 'rtmedia_load_more', __('Loading media',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_empty_activity_msg', __('Please enter some content to post.',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_empty_comment_msg', __('Empty Comment is not allowed.',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_media_delete_confirmation', __('Are you sure you want to delete this media?',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_media_comment_delete_confirmation', __('Are you sure you want to delete this comment?',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_album_delete_confirmation', __('Are you sure you want to delete this Album?',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_drop_media_msg', __('Drop files here',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_album_created_msg', ' ' . __('album created successfully.',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_something_wrong_msg', __('Something went wrong. Please try again.',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_empty_album_name_msg', __('Enter an album name.',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_max_file_msg', __('Max file Size Limit : ',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_allowed_file_formats', __('Allowed File Formats',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_select_all_visible', __('Select All Visible',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_unselect_all_visible', __('Unselect All Visible',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_no_media_selected', __('Please select some media.',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_selected_media_delete_confirmation', __('Are you sure you want to delete the selected medias?',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_selected_media_move_confirmation', __('Are you sure you want to move the selected medias?',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_waiting_msg', __('Waiting',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_uploaded_msg', __('Uploaded',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_uploading_msg', __('Uploading',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_upload_failed_msg', __('Failed',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_close', __('Close',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_edit', __('Edit',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_delete', __('Delete',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_edit_media', __('Edit Media',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_remove_from_queue', __('Remove from queue',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_add_more_files_msg', __('Add more files',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_file_extension_error_msg', __('File not supported',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_more', __('more',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_less', __('less',"rtmedia"));
+        wp_localize_script('rtmedia-main', 'rtmedia_delete_uploaded_media', __('This media is uploaded. Are you sure you want to delete this media?',"rtmedia"));
+        wp_localize_script ( 'rtmedia-backbone', 'rMedia_loading_media', RTMEDIA_URL . "app/assets/img/boxspinner.gif" );
     }
 
     function set_bp_bar() {

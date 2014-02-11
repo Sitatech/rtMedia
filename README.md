@@ -50,6 +50,8 @@ http://www.youtube.com/watch?v####dJrykKQGDcs
 
 #### rtMedia-PRO Features ####
 
+ * **RSS Feed/Podcasting Support** - Integrates RSS Feed Support that can be used for podcasting to listen audio and video to your podcast supported player(e.g. iTunes).
+ * **WordPress Comment Attachment** -  Attach photos, videos, music, documents and other files to native WordPress comments.
  * **bbPress Integration** - Integrates with profiles. Also adds attachment support for topics and replies.
  * **Moderation Feature** - "Report Abuse" button for users. Interface to manage reported media and optionally block users from future uploads.
  * **MyCRED/CubePoints Integration** - You can reward users for media uploads. Out of box integration for MyCRED and CubePoints.
@@ -131,6 +133,54 @@ http://www.youtube.com/watch?v####dJrykKQGDcs
 
 Please visit [rtMedia's Roadmap page](http://rtcamp.com/rtmedia/roadmap/?utm_source####readme&utm_medium####plugin&utm_campaign####buddypress-media "Visit rtMedia's Features page") to get some details about future releases.
 
+#### 3.5.2.1 ####
+* Admin UI bug fixes
+
+#### 3.5.2 ####
+* Updated dutch translation, thanks to [carry2web] (http://profiles.wordpress.org/carry2web)
+* Enable / disable media per group
+* User can specify media type to be upload in uploader shortcode
+* Show content of single album using gallery shortcode
+* Custom thumbnail for medias
+* Bug fixes
+
+#### 3.5.1 ####
+* Fix for AudioPlayer under LightBox in WordPress TwentyFourteen Theme
+* Fix for mobile uploads
+* Album selection in media edit
+* Bug fixes
+
+#### 3.5 ####
+* updated too foundation 5
+* Bug Fixes
+
+#### 3.4.6 ####
+* Fix paging query and bug fixes
+
+#### 3.4.5 ####
+* Fix pagging query sql issues
+
+#### 3.4.4 ####
+* Update german trasalation
+* Add support in some strings translations again thanks to [jonasnick](https://github.com/jonasnick) for pull request
+
+#### 3.4.3 ####
+* Bug fixes
+
+#### 3.4.2 ####
+* Bug fixes
+
+#### 3.4.1 ####
+* Bug fixes related to media privacy
+
+#### 3.4 ####
+* Separate media handling for group and profile
+* Bug fixes
+
+#### 3.3 ####
+* Updated uploader with media delete functionality.
+* Improved UI
+* Bug fixes
 
 #### 3.2.13.1 ####
 * Update po files.
@@ -635,8 +685,8 @@ Please visit [rtMedia's Roadmap page](http://rtcamp.com/rtmedia/roadmap/?utm_sou
 * HTML5 Audio Tag Support (with fallback)
 * HTML5 Video Tag Support (with fallback)
 
-#### 3.2.13.1 ####
-Requires BuddyPress 1.7 or higher, if using BuddyPress. Update po files
+#### 3.5.2.1 ####
+Requires BuddyPress 1.7 or higher, if using BuddyPress. Admin UI bug fixes
 
 ## Sponsors ##
 
@@ -649,6 +699,8 @@ Requires BuddyPress 1.7 or higher, if using BuddyPress. Update po files
 
 rtMedia includes [full translation support](https://rtcamp.com/tutorials/rtmedia-translation/?utm_source####readme&utm_medium####plugin&utm_campaign####buddypress-media). Head over to the [translation project](http://rtcamp.com/translate/projects/rtmedia/?utm_source####readme&utm_medium####plugin&utm_campaign####buddypress-media) to contribute your translations. If you don't see the language of your choice, let us know in the support forum, we'll add it.
 
+* [Dutch](https://rtcamp.com/translate/projects/rtmedia/nl/default) translation by [carry2web] (http://profiles.wordpress.org/carry2web)
+* [Italian](https://rtcamp.com/translate/projects/rtmedia/it/default) translation by [Paolo]
 * [Dutch](https://rtcamp.com/translate/projects/rtmedia/nl/default) translation by [rjpj](http://profiles.wordpress.org/rjpj)
 * [Polish](https://rtcamp.com/translate/projects/rtmedia/pl/default) translation by [Polski_Ziom](http://profiles.wordpress.org/polski_ziom)
 * [Spanish](https://rtcamp.com/translate/projects/rtmedia/es/default) translation by [Andrés Felipe](http://profiles.wordpress.org/naturalworldstm/) and [d3ne]

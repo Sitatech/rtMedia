@@ -105,9 +105,6 @@ class RTMediaTemplate {
                 }
                 //add_action("rtmedia_before_media_gallery",array(&$this,"")) ;
 		if( isset( $shortcode_attr[ 'attr' ] ) && isset( $shortcode_attr[ 'attr' ]['uploader'] ) && $shortcode_attr[ 'attr' ]['uploader'] == "before" ) {
-		    if( isset( $shortcode_attr[ 'attr' ]['media_type'] ) ) {
-//			wp_enqueue_script ( 'rtmedia-upload-filter', RTMEDIA_URL . 'app/assets/js/rtmedia_uploader_fitler.js', array( 'plupload', 'backbone' ), false, true );
-		    }
 		    echo RTMediaUploadShortcode::pre_render($shortcode_attr[ 'attr' ]);
 		}
 		echo "<div class='rtmedia_gallery_wrapper'>";
@@ -116,9 +113,6 @@ class RTMediaTemplate {
                 include $this->locate_template ( $gallery_template );
 		echo "</div>";
 		if( isset( $shortcode_attr[ 'attr' ] ) && isset( $shortcode_attr[ 'attr' ]['uploader'] ) && ( $shortcode_attr[ 'attr' ]['uploader'] == "after" || $shortcode_attr[ 'attr' ]['uploader'] == "true" ) ) {
-		    if( isset( $shortcode_attr[ 'attr' ]['media_type'] ) ) {
-//			wp_enqueue_script ( 'rtmedia-upload-filter', RTMEDIA_URL . 'app/assets/js/rtmedia_uploader_fitler.js', array( 'plupload', 'backbone' ), false, true );
-		    }
 		    echo RTMediaUploadShortcode::pre_render($shortcode_attr[ 'attr' ]);
 		}
             } else {
@@ -193,7 +187,12 @@ class RTMediaTemplate {
         $nonce = $_POST[ 'rtmedia_media_nonce' ];
         if ( wp_verify_nonce ( $nonce, 'rtmedia_' . $rtmedia_query->action_query->id ) ) {
             do_action ( 'rtmedia_before_update_media', $rtmedia_query->action_query->id );
-            $data = rtmedia_sanitize_object ( $_POST, array( 'media_title', 'description', 'privacy' ) );
+            $data_array = array( 'media_title', 'description', 'privacy' );
+            //for medias except album and playlist, if album_is is found, then update album_id for the media also
+            if( isset( $_POST['album_id'] ) && $_POST['album_id'] != ''){
+                $data_array[] = 'album_id';
+            }
+            $data = rtmedia_sanitize_object ( $_POST, $data_array );
             $media = new RTMediaMedia();
             $state = $media->update ( $rtmedia_query->action_query->id, $data, $rtmedia_query->media[ 0 ]->media_id );
             $rtmedia_query->query ( false );
@@ -208,7 +207,7 @@ class RTMediaTemplate {
             } else {
                     $rtMediaNav->refresh_counts ( $rtmedia_query->media[ 0 ]->media_author, array( "context" => "profile", 'media_author' => $rtmedia_query->media[ 0 ]->media_author ) );
             }
-
+	    $state = apply_filters('rtmedia_single_edit_state',$state);
             if ( $state !== false ) {
                 add_action ( "rtmedia_before_template_load", array( &$this, "media_update_success_messege" ) );
             } else {
@@ -457,20 +456,20 @@ class RTMediaTemplate {
 
         if ( $rtmedia_query->action_query->action != 'delete-comment' )
             return;
-        
+
         if ( count ( $_POST ) ) {
             /**
              * /media/id/delete-comment [POST]
              * Delete Comment by Comment ID
              */
-            
+
             if ( empty ( $_POST[ 'comment_id' ] ) ) {
                 return false;
             }
             $comment = new RTMediaComment();
             $id = $_POST['comment_id'];
             $activity_id = get_comment_meta($id, 'activity_id',true);
-            
+
             if(!empty($activity_id)){
                 if(function_exists('bp_activity_delete_comment')){ //if buddypress is active
                     $activity_deleted = bp_activity_delete_comment ($activity_id, $id);

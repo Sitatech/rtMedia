@@ -11,8 +11,12 @@ if (!class_exists('RTMediaSettings')) {
     class RTMediaSettings {
 
         public function __construct() {
-            if (!(defined('DOING_AJAX') && DOING_AJAX))
-                add_action('admin_init', array($this, 'settings'));
+            if (!(defined('DOING_AJAX') && DOING_AJAX)) {
+		add_action('admin_init', array($this, 'settings'));
+		if (isset($_POST['rtmedia-options-save'])) {
+		    add_action('init', array($this, 'settings'));
+		}
+	    }
 //            if (is_multisite()) {
 //                add_action('network_admin_notices', array($this, 'privacy_notice'));
 //            } else {
@@ -34,7 +38,9 @@ if (!class_exists('RTMediaSettings')) {
                 'general_videothumbs' => 2,
 		'general_uniqueviewcount' => 0,
 		'general_viewcount' => 0,
-		'general_AllowUserData' => 1
+		'general_AllowUserData' => 1,
+		'rtmedia_add_linkback' => 0,
+		'rtmedia_affiliate_id' => ''
             );
 
             $defaults = apply_filters('rtmedia_general_content_default_values', $defaults);
@@ -101,7 +107,7 @@ if (!class_exists('RTMediaSettings')) {
          * @global BPMediaAddon $rtmedia_addon
          */
         public function settings() {
-            global $rtmedia, $rtmedia_addon;
+            global $rtmedia, $rtmedia_addon, $rtmedia_save_setting_single;
             $options = rtmedia_get_site_option('rtmedia-options');
             $options = $this->sanitize_options($options);
             $rtmedia->options = $options;
@@ -110,14 +116,26 @@ if (!class_exists('RTMediaSettings')) {
                 $options = $_POST['rtmedia-options'];
                 $options = $this->sanitize_before_save_options($options);
                 $options = apply_filters("rtmedia_pro_options_save_settings", $options);
+		$is_rewrite_rule_flush = apply_filters('rtmedia_flush_rewrite_rule',false);
                 rtmedia_update_site_option('rtmedia-options', $options);
+		if( $is_rewrite_rule_flush ) {
+		    flush_rewrite_rules(false);
+		}
+                wp_redirect($_SERVER['HTTP_REFERER']);
                 global $rtmedia;
                 $rtmedia->options = $options;
             }
-            $rtmedia_addon = new RTMediaAddon();
-            add_settings_section('rtm-addons', __('BuddyPress Media Addons for Photos', 'rtmedia'), array($rtmedia_addon, 'get_addons'), 'rtmedia-addons');
-        $rtmedia_support = new RTMediaSupport(false);
-            add_settings_section('rtm-support', __('Support', 'rtmedia'), array($rtmedia_support, 'get_support_content'), 'rtmedia-support');
+
+	    if(function_exists('add_settings_section') ) {
+		$rtmedia_addon = new RTMediaAddon();
+		add_settings_section('rtm-addons', __('BuddyPress Media Addons for Photos', 'rtmedia'), array($rtmedia_addon, 'get_addons'), 'rtmedia-addons');
+		$rtmedia_support = new RTMediaSupport(false);
+		add_settings_section('rtm-support', __('Support', 'rtmedia'), array($rtmedia_support, 'get_support_content'), 'rtmedia-support');
+		$rtmedia_themes = new RTMediaThemes();
+		add_settings_section('rtm-themes', __('rtMedia Themes', 'rtmedia'), array($rtmedia_themes, 'get_themes'), 'rtmedia-themes');
+	    }
+
+
 
 //            if (!BPMediaPrivacy::is_installed()) {
 //                $rtmedia_privacy = new BPMediaPrivacySettings();
@@ -127,9 +145,12 @@ if (!class_exists('RTMediaSettings')) {
             //$rtmedia_album_importer = new BPMediaAlbumimporter();
             //add_settings_section('rtm-rt-album-importer', __('BP-Album Importer', 'rtmedia'), array($rtmedia_album_importer, 'ui'), 'rtmedia-importer');
             //register_setting('rtmedia', 'rtmedia_options', array($this, 'sanitize'));
+	    if( !isset($rtmedia_save_setting_single) ) {
+		$rtmedia_save_setting_single = true;
+	    }
         }
 
-        public function network_notices() {
+	public function network_notices() {
             $flag = 1;
             if (rtmedia_get_site_option('rtm-media-enable', false)) {
                 echo '<div id="setting-error-bpm-media-enable" class="error"><p><strong>' . rtmedia_get_site_option('rtm-media-enable') . '</strong></p></div>';
