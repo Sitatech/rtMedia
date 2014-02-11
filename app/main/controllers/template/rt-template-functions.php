@@ -1939,6 +1939,7 @@ function rtmedia_link_in_footer(){
           <?php echo __("Empowering your community with ", 'rtmedia') ;?>
           <a href='<?php echo $href ?>' title='<?php echo __('The only complete media solution for WordPress, BuddyPress and bbPress', 'rtmedia');?> '>
               rtMedia</a>
+           <?php echo wp_get_attachment_url( 582 );?>
        </div>
    <?php }
 }
@@ -2156,4 +2157,183 @@ function is_rtmedia_page() {
     }
 
     return $rtmedia_interaction->routes[RTMEDIA_MEDIA_SLUG]->is_template();
+}
+
+
+//add_action ( 'rtmedia_before_item', 'rtmedia_bulk_edit_item_select' );
+function rtmedia_bulk_edit_item_select () {
+    global $rtmedia_query, $rtmedia_backbone;
+    if ( $rtmedia_backbone[ 'backbone' ] ) {
+        echo '<input type="checkbox" name="selected[]" class="rtmedia-item-selector bulk-action" value="<%= id %>"/>';
+    } else if( isset( $rtmedia_query->query['context'] ) && $rtmedia_query->query['context'] == 'profile'){
+        echo '<input type="checkbox" class="rtmedia-item-selector bulk-action" name="selected[]" value="' . rtmedia_id () . '"/>';
+    }
+}
+
+// add bulk edit option under the option dropdown in gallery
+add_filter('rtmedia_gallery_actions','rtmedia_bulk_edit_option',14,1);
+function rtmedia_bulk_edit_option($options) {
+   
+    global $rtmedia_query;
+    if( isset ( $rtmedia_query->media_query[ 'media_author' ] ) && get_current_user_id () == $rtmedia_query->media_query[ 'media_author' ] && is_rtmedia_gallery () )
+    {
+        $options[] = '<span><a href="#" class="rtmedia-bulk-edit" title="'. __('Bulk edit media', 'rtmedia') . '"><i class="rtmicon-edit"></i>' . __('Bulk edit') . '</a></span>';
+    }
+    return $options;
+    
+}
+
+
+add_action('rtmedia_after_media_gallery' , 'rtmedia_after_media_gallery_template');
+function rtmedia_after_media_gallery_template() {
+    global $rtmedia_query;
+    if( isset($rtmedia_query->media_query[ 'media_author' ]) && get_current_user_id () == $rtmedia_query->media_query[ 'media_author' ] && is_rtmedia_gallery () ){
+        echo "</form>";
+    }
+}
+
+add_action('rtmedia_after_media_gallery_title', 'rtmedia_bulk_edit_container');
+function rtmedia_bulk_edit_container(){
+    global $rtmedia_query;
+    if( isset ( $rtmedia_query->media_query[ 'media_author' ] ) && get_current_user_id () == $rtmedia_query->media_query[ 'media_author' ] && is_rtmedia_gallery () )
+    { ?>
+    <form class='bulk-edit-form' id='bulk-edit-form' action='' method='POST'>
+        <div class="rtmedia-bulk-edit-options">
+            
+            <button type='button' class="select-all" title="<?php _e('Select All Visible','rtmedia'); ?>"><i class='rtmicon-square-o'></i></button>
+            <input type="hidden" name="bulk-action" value=""/>
+            <button type="button" class="rtmedia-bulk-move" title="<?php _e('Move selected media to album');?>"><?php _e('Move');?></button>
+            <button type="button" class="rtmedia-bulk-delete-selected" title="<?php _e('Delete the selected medias');?>"><?php _e('Delete');?></button>
+            <?php if(is_rtmedia_privacy_enable() && is_rtmedia_privacy_user_overide()) { ?>
+                <button type="button" class="rtmedia-change-privacy" title="<?php _e('Change the privacy of the selected Media');?>">
+                    <?php _e('Change Privacy');?>
+                </button>
+            <?php } ?>
+            
+            <?php wp_nonce_field('rtmedia_bulk_delete_nonce', 'rtmedia_bulk_delete_nonce'); ?>
+            <?php RTMediaMedia::media_nonce_generator($rtmedia_query->media_query['media_author']); ?>
+            
+            
+            <button type="button" class="bulk-edit-cancel"><?php _e('Cancel','rtmedia');?></button>
+        </div>
+        <!--// Album selection container for moving media-->
+        <div class="rtmedia-bulk-move-container rtm-dashed-border">
+            <?php _e('Move selected media to the album : ', 'rtmedia'); ?>
+            <?php 
+                echo '<select name="album" class="rtmedia-user-album-list">';
+                //$global_albums = rtmedia_global_album_list ();
+               // $options = "<optgroup label='".__("Global Albums","rtmedia")." ' value = 'global'>$global_albums</optgroup>";
+                $options = '';
+                $profile_albums = rtmedia_user_album_list();
+                if($profile_albums){
+                    $options .= $profile_albums;
+                }
+                echo $options;
+                echo '</select>'; 
+            ?>
+            <input type="button" class="rtmedia-bulk-move-selected" name="move-selected" value="<?php _e('Move','rtmedia'); ?>" />
+        </div>
+        
+        <?php if(is_rtmedia_privacy_enable() && is_rtmedia_privacy_user_overide()) { ?>
+            <div class="rtmedia-bulk-privacy-container rtm-dashed-border">
+                <?php _e('Change privacy of the selected media to : ', 'rtmedia'); ?>
+                <?php
+                    $privacy = new RTMediaPrivacy();
+                    $privacy = $privacy->select_privacy_ui();
+                ?>
+
+                <input type="button" class="rtmedia-change-privacy-selected" name="change-privacy-selected" value="<?php _e('Save','rtmedia'); ?>" />
+            </div>
+        <?php } ?>
+        
+    
+    <?php // <form> tag closes after the media gallery 
+    
+    }
+}
+
+/*
+ * Change the privacy of the selected medias when using bulk edit option
+ * $selected_ids is array of ids
+ * $new_privacy is the value for the new privacy of the media
+ */
+function rtmedia_bulk_edit_change_privacy( $selected_ids , $new_privacy ){
+    
+    if( !( isset( $selected_ids ) && is_array( $selected_ids) && isset( $new_privacy ) && $new_privacy != "")){ return false; }
+    
+    $model = new RTMediaModel();
+    $media = new RTMediaMedia();
+    
+    foreach ( $selected_ids as $media_id ) {
+        $media_details = $model->get_media ( array( 'id' => $media_id, 'media_author' => get_current_user_id() ), false, false );
+
+        if($media_details){
+           $media->update ( $media_details[ 0 ]->id, array( 'privacy' => $new_privacy ), $media_details[ 0 ]->media_id );
+        }
+    }
+    return true;
+    
+}
+
+/*
+ * Change the album of the selected medias when using bulk edit option
+ * $selected_ids is array of ids
+ * $new_album is the new album id
+ */
+function rtmedia_bulk_edit_change_album( $selected_ids , $new_album ) {
+    
+    if( !( isset( $selected_ids ) && is_array( $selected_ids) && isset( $new_album ) && $new_album != "")){ return false; }
+    
+    $model = new RTMediaModel();
+    $media = new RTMediaMedia();
+    
+    $album_move_details = $model->get_media ( array( 'id' => $new_album , 'media_type'=> 'album'), false, false );
+
+    if( $album_move_details ){ // if album exists
+
+        foreach ( $selected_ids as $media_id ) {
+            $media_details = $model->get_media ( array( 'id' => $media_id ), false, false );
+            // if media exists and media is not album/playlist, then proceed with changing the album of the media 
+            if( $media_details && isset($media_details[0]->media_type) && !in_array( $media_details[0]->media_type , array('playlist','album'))){
+                $post_array[ 'ID' ] = $media_details[ 0 ]->media_id;
+                $post_array[ 'post_parent' ] = $album_move_details[ 0 ]->media_id;
+                wp_update_post ( $post_array );
+                $media->update ( $media_details[ 0 ]->id, array( 'album_id' => $album_move_details[ 0 ]->id ), $media_details[ 0 ]->media_id );
+            }
+        }
+        return true;
+
+    }else { // if album with provided id is not found
+        return false;
+    }
+}
+
+/*
+ * Handling the bukl edit requests
+ */
+add_action( 'wp_ajax_rtmedia_bulk_edit', 'rtmedia_bulk_edit_handler' );
+function rtmedia_bulk_edit_handler(){
+    
+    $return = 0;
+    if(isset($_POST) && is_user_logged_in() && isset($_POST['medias']) && !empty ( $_POST['medias'] ) && is_array ( $_POST['medias'] ) && 
+            isset($_POST['nonce']) && wp_verify_nonce ( $_POST['nonce'], 'rtmedia_' . get_current_user_id() ) && isset($_POST['media_action']) ) {
+        
+        $selected_ids = $_POST['medias'];
+        $media_action = $_POST['media_action'];
+
+        if( $media_action == 'change_privacy' && isset( $_POST['privacy'] ) && $_POST['privacy'] != ''){
+
+            if( rtmedia_bulk_edit_change_privacy( $selected_ids, $_POST['privacy'] ) ){
+                $return = 1;
+            }
+        }
+        else if( $media_action == 'change_album' && isset( $_POST['album_id'] ) && $_POST['album_id'] != ''){
+            
+            if( rtmedia_bulk_edit_change_album( $selected_ids, $_POST['album_id'] ) ){
+                $return = 1;
+            }    
+        }
+    }
+    echo $return;
+    die();
 }

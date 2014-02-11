@@ -34,6 +34,9 @@
         background-color: #306BAA;
     }
 }
+.rtm-hide{
+    display: none;
+}
 .rtm-primary-font-color {
     color : #3475BA
 }
@@ -215,6 +218,8 @@
                         
                         .rtmedia-item-selector {
                             position: absolute;
+                            z-index: 2;
+                            margin : 3px 0 0 3px;
                         }
 		}
 		.rtmedia-list-item.media-type-music, .rtmedia-list-item.media-type-video {
@@ -1443,5 +1448,39 @@ button.rtp-lb-close {
             background: #EDEDED;
         }
     }
+    
+}
+
+//bulk edit
+.rtm-dashed-border{
+    padding: 10px;
+    border : 2px dashed #c1c1c1;
+}
+
+        
+#bulk-edit-form {
+    .rtmedia-bulk-move-container,.rtmedia-bulk-privacy-container{
+        @extend .rtm-dashed-border;
+    }
+    .select-all, .unselect-all {
+        i{
+        margin: 0;
+        }
+    }
+    .rtmedia-bulk-edit-options {
+        margin-bottom: 10px;
+    }
+}
+
+.bulk-action{
+    display:none;
+}
+
+.bulk-edit-on .bulk-action {
+    display: block;
+}
+
+.bulk-edit-on .rtmedia-list .bulk-selected a img{
+    outline : 4px dashed green;
     
 }

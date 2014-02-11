@@ -179,6 +179,7 @@ jQuery('document').ready(function($) {
         jQuery(this).html('<i class="rtmicon-check-square-o"></i>');
         jQuery('.rtmedia-list input').each(function() {
             jQuery(this).prop('checked', true);
+            jQuery(this).parent('li').addClass('bulk-selected');
         });
     });
 
@@ -189,6 +190,7 @@ jQuery('document').ready(function($) {
         jQuery(this).html('<i class="rtmicon-square-o"></i>');
         jQuery('.rtmedia-list input').each(function() {
             jQuery(this).prop('checked', false);
+            jQuery(this).parent('li').removeClass('bulk-selected');
         });
     });
 
@@ -311,6 +313,7 @@ jQuery('document').ready(function($) {
                 //console.log( height );
                 //   , .mfp-content #buddypress .rtmedia-container,
                 jQuery('.mfp-content .rtm-lightbox-container .rtmedia-single-meta, .mfp-content .rtm-lightbox-container #rtmedia-single-media-container .rtmedia-media, .rtm-lightbox-container .mejs-video').css({ 'height' : height*0.8, 'max-height' : height*0.8, 'over-flow' : 'hidden' });
+                jQuery('.mfp-content .rtm-lightbox-container .rtmedia-media img ').css({ 'height' : '100%', 'max-height' : '100%'});
                 //mejs-video
                 //init the options dropdown menu
                 init_action_dropdown();
@@ -413,7 +416,6 @@ jQuery('document').ready(function($) {
 //    jQuery(document).on('click', '#rtm_show_upload_ui', function(){
 //        jQuery('#rtm-media-gallery-uploader').slideToggle();
 //    });
-
     //drop-down js
     function init_action_dropdown() {
         $('.click-nav > span').toggleClass('no-js js');
@@ -442,6 +444,154 @@ jQuery('document').ready(function($) {
 	    "showChars" : 200
 	});
     }
+    
+    // bulk media editing js
+    
+//    $('.bulk-edit-on').on('click', function(e){
+//        e.preventDefault();
+//        $('.bulk-edit-form').toggleClass('bulk-edit-on');
+//    });
+    
+    //keep the move option, privacy change option and bulk edit options container hidden by default untill user requires
+    $('.rtmedia-bulk-move-container, .rtmedia-bulk-privacy-container, .rtmedia-bulk-edit-options').hide();
+    
+    //show bulk edit options when bulk edit button is clicked
+    $('.rtmedia-bulk-edit').on('click', function(e){
+        e.preventDefault();
+        $('.rtmedia-bulk-edit-options').show();
+        //add bulk-edit-on class to the form
+        $('.bulk-edit-form').addClass('bulk-edit-on');
+        $('.bulk-edit-form .rtmedia-list-item').each( function(e){ //add checkbox to available gallery items
+            $(this).prepend('<input type="checkbox" class="rtmedia-item-selector bulk-action" name="selected[]" value="' + this.id + '"/>');
+        });
+        $('.rtmedia_next_prev').addClass('rtm-hide'); // hide the load more buttons
+        //stop navigation to single media when bulk editing is ON.
+        $('.bulk-edit-on .rtmedia-list-item > a').click( function(k){
+            k.preventDefault();
+              var that = $(this),
+                  checkbox = that.parent().find(':checkbox');
+            
+            if( checkbox.is(':checked') ){
+                checkbox.prop('checked', false);
+                that.parent('li').removeClass('bulk-selected');
+            }else {
+                checkbox.prop('checked', true);
+                that.parent('li').addClass('bulk-selected');
+            }
+        });
+        //stop the lightbox from opening when bulk edit mode is on
+        $('.bulk-edit-on .rtmedia-list-item > a').addClass('no-popup');
+    });
+    
+    //close bulk edit options when cancel button clicked
+    $('.bulk-edit-cancel').on('click', function(e){
+        $('.rtmedia-bulk-edit-options').hide();
+        // remove class bulk-edit-on fromt the form when bulk edit mode is exited
+        $('.bulk-edit-form').removeClass('bulk-edit-on');
+        
+        //remove class 'rtm-hide' from load more button container
+        $('.rtmedia_next_prev').removeClass('rtm-hide');
+        //remove no-popup class from anchors so that lighbox can open
+        $('.bulk-edit-on .rtmedia-list-item a').addClass('no-popup');
+    });
+    
+//    //change the class of the <li> when checkbox inside that <li> is checked or unchecked
+//    $(".rtmedia-list :checkbox").on('change',function(){
+//
+//        if( $(this).is(':checked') ){
+//            //$(this).next('a').addClass('no-popup');
+//        }else {
+//            //$(this).next('a').removeClass('no-popup');
+//        }
+//     });
+     
+     
+     
+    
+    //bulk deleting
+    $('.rtmedia-bulk-delete-selected').on('click', function(e){
+        var that = this;
+         if( jQuery('.rtmedia-list :checkbox:checked').length > 0 ){
+            if(confirm(rtmedia_selected_media_move_confirmation)){
+               jQuery(this).closest('form').attr('action', '../../../../media/delete').submit();
+            }
+        }else{
+            alert(rtmedia_no_media_selected);
+        }
+    });
+    
+    //bulk media moving
+    $('.rtmedia-bulk-move').on('click', function(e){
+        $('.rtmedia-bulk-privacy-container').hide();
+        $('.rtmedia-bulk-move-container').slideToggle();
+        
+    });
+    $('.rtmedia-bulk-move-selected').on('click', function(e){
+         if( jQuery('.rtmedia-list :checkbox:checked').length > 0 ){
+            if(confirm(rtmedia_selected_media_move_confirmation)){
+               var media_id = new Array();
+               jQuery('.bulk-edit-on .rtmedia-list :checkbox:checked').each(function(){
+                  media_id[ media_id.length ] = this.value; 
+               });
+               var new_album  = jQuery('.rtmedia-bulk-move-container .rtmedia-user-album-list').val();
+               var nonce_field = jQuery('.bulk-edit-form #rtmedia_media_nonce').val();
+                var data = {
+                        action: 'rtmedia_bulk_edit',
+                        media_action : 'change_album',
+                        medias : media_id,
+                        album_id : new_album,
+                        nonce : nonce_field
+                };
+                
+                $.post(ajaxurl, data, function(response) {
+                    
+                    if(response === '1'){
+                        $('.rtmedia-bulk-move-container').after('<p>Media Moved Successfully</p>');
+                    }
+                    else{
+                        alert('Some error occured. Please try again');
+                    }
+                });
+            }
+        }else{
+            alert(rtmedia_no_media_selected);
+        }
+    });
+    
+    //bulk changing privacy
+    $('.rtmedia-change-privacy').on('click', function(e){
+        $('.rtmedia-bulk-move-container').hide();
+        $('.rtmedia-bulk-privacy-container').slideToggle();
+    });
+    $('.rtmedia-change-privacy-selected').on('click', function(e){
+         if( jQuery('.rtmedia-list :checkbox:checked').length > 0 ){
+           // if(confirm(rtmedia_selected_media_move_confirmation)){
+               var media_id = new Array();
+               jQuery('.bulk-edit-on .rtmedia-list :checkbox:checked').each(function(){
+                  media_id[ media_id.length ] = this.value; 
+               });
+               var new_privacy  = jQuery('.rtmedia-bulk-privacy-container select.privacy').val();
+               var nonce_field = jQuery('.bulk-edit-form #rtmedia_media_nonce').val();
+                var data = {
+                        action: 'rtmedia_bulk_edit',
+                        media_action : 'change_privacy',
+                        medias : media_id,
+                        privacy : new_privacy,
+                        nonce : nonce_field
+                };
+                $.post(ajaxurl, data, function(response) {
+                        if(response === '1'){
+                            alert('Privacy of the selected media changed successfully');
+                        }else{
+                            alert('eror message');
+                        }
+                });
+            //}
+        }else{
+            alert(rtmedia_no_media_selected);
+        }
+    });    
+    
 });
 
 
